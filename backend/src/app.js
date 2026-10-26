@@ -1,32 +1,56 @@
-// Seed do servidor backend do Document Management System.
-//
-// Este arquivo é apenas um ponto de partida mínimo. Ao longo do workshop você
-// vai usar o Agent Mode do GitHub Copilot para construir as camadas:
-//   - routes/       (definição das rotas)
-//   - controllers/  (entrada HTTP e validação)
-//   - services/     (regras de negócio)
-//   - repositories/ (persistência: arquivos locais + metadados em memória)
-//
-// Restrição do projeto: uploads são gravados no filesystem local da aplicação
-// usando multer com diskStorage. Não utilize provedores externos.
-
 const express = require('express');
+const config = require('./config');
+const { createDocumentsRepository } = require('./repositories/documents.repository');
+const { createDocumentsService } = require('./services/documents.service');
+const { createDocumentsController } = require('./controllers/documents.controller');
+const { createDocumentsRouter } = require('./routes/documents.routes');
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+function createApp({
+  repository = createDocumentsRepository(),
+  maxFileSize = config.maxFileSize,
+} = {}) {
+  const app = express();
+  const service = createDocumentsService(repository, { maxFileSize });
+  const controller = createDocumentsController(service, {
+    uploadStorage: repository.uploadStorage,
+    maxFileSize,
+  });
 
-app.use(express.json());
+  app.use(express.json());
+  app.get('/health', (req, res) => {
+    res.json({ status: 'ok' });
+  });
+  app.use(createDocumentsRouter(controller));
+  app.use((error, req, res, next) => {
+    if (res.headersSent) {
+      next(error);
+      return;
+    }
+    const invalidJson = error.type === 'entity.parse.failed';
+    const oversizedBody = error.type === 'entity.too.large';
+    if (!invalidJson && !oversizedBody) {
+      console.error('Falha inesperada ao processar a requisição:', error);
+    }
+    res.status(invalidJson ? 400 : oversizedBody ? 413 : 500).json({
+      error: {
+        code: invalidJson ? 'INVALID_REQUEST' : oversizedBody ? 'REQUEST_TOO_LARGE' : 'INTERNAL_ERROR',
+        message: invalidJson ? 'Corpo JSON inválido.'
+          : oversizedBody ? 'O corpo da requisição excede o limite permitido.'
+            : 'Não foi possível processar a requisição.',
+      },
+    });
+  });
 
-// Endpoint de verificação de saúde. As demais rotas (/upload, /documents,
-// /documents/:id/download) serão implementadas durante o Passo 2.
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
+  return app;
+}
+
+const app = createApp();
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`DMS backend ouvindo na porta ${PORT}`);
+  app.listen(config.port, () => {
+    console.log(`DMS backend ouvindo na porta ${config.port}`);
   });
 }
 
 module.exports = app;
+module.exports.createApp = createApp;
