@@ -7,8 +7,24 @@ class DocumentError extends Error {
   }
 }
 
-function publicMetadata({ id, originalName, size, uploadedAt, owner }) {
+function toPublicMetadata({ id, originalName, size, uploadedAt, owner }) {
   return { id, originalName, size, uploadedAt, owner };
+}
+
+async function removeFailedUpload(repository, filename) {
+  try {
+    await repository.removeFile(filename);
+  } catch (cleanupError) {
+    console.error('Falha ao remover arquivo de upload não concluído:', cleanupError);
+  }
+}
+
+async function findOwnedDocument(repository, id, owner) {
+  const document = await repository.findById(id);
+  if (!document || document.owner !== owner) {
+    throw new DocumentError('DOCUMENT_NOT_FOUND', 'Documento não encontrado.');
+  }
+  return document;
 }
 
 function createDocumentsService(repository, { maxFileSize }) {
@@ -29,25 +45,18 @@ function createDocumentsService(repository, { maxFileSize }) {
           owner,
           storageName: file.filename,
         });
-        return publicMetadata(document);
+        return toPublicMetadata(document);
       } catch (error) {
-        try {
-          await repository.removeFile(file.filename);
-        } catch (cleanupError) {
-          console.error('Falha ao remover arquivo de upload não concluído:', cleanupError);
-        }
+        await removeFailedUpload(repository, file.filename);
         throw error;
       }
     },
     async list(owner) {
       const documents = await repository.findByOwner(owner);
-      return documents.map(publicMetadata);
+      return documents.map(toPublicMetadata);
     },
     async download(id, owner) {
-      const document = await repository.findById(id);
-      if (!document || document.owner !== owner) {
-        throw new DocumentError('DOCUMENT_NOT_FOUND', 'Documento não encontrado.');
-      }
+      const document = await findOwnedDocument(repository, id, owner);
       const file = await repository.openFile(document.storageName);
       return { ...file, originalName: document.originalName };
     },
