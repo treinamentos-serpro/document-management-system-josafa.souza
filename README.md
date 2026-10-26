@@ -67,8 +67,42 @@ npm test --prefix backend
 
 Os testes usam subdiretórios temporários em `backend/storage` e removem somente
 os próprios arquivos ao final. O endpoint `GET /health` continua disponível.
-O frontend pode chamar as rotas com `/api` pelo proxy do Vite; não foi
-implementado nesta etapa.
+O frontend chama as rotas com `/api` pelo proxy do Vite.
+
+## Frontend do DMS
+
+Com o backend rodando na porta padrão `3000`, abra outro terminal:
+
+```sh
+cd frontend
+npm ci
+npm run dev
+```
+
+Acesse o endereço exibido pelo Vite (por padrão, `http://localhost:5173`).
+Informe um identificador e clique em **Usar identificador**. Selecione um
+arquivo para enviar; após o envio a lista é atualizada automaticamente.
+Use **Baixar** para salvar um documento e **Atualizar lista** para consultar
+novamente. A troca de identificador limpa a interface anterior e cancela suas
+requisições em andamento, mas um upload já recebido pelo servidor pode ter sido
+concluído.
+
+`UploadComponent`, `DocumentList` e `DownloadButton` compartilham o cliente
+`src/services/documentsApi.js`, que envia `X-User-Id` e usa `fetch` com o prefixo
+`/api`. Mensagens de erro são exibidas na interface. O limite de tamanho é
+validado no backend, sem duplicar a configuração no frontend.
+
+Validação a partir da raiz (os testes de integração também precisam das
+dependências do backend instaladas):
+
+```sh
+npm test --prefix frontend
+npm run build --prefix frontend
+```
+
+Os testes cobrem o cliente, integração HTTP pelo proxy Vite e renderização inicial
+dos componentes. O build de produção precisa de um servidor que encaminhe
+`/api` ao backend removendo o prefixo: o proxy do Vite é de desenvolvimento.
 
 ---
 

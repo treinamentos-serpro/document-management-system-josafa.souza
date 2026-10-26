@@ -1,20 +1,57 @@
-// Seed do componente raiz do Document Management System.
-//
-// Este é apenas um ponto de partida mínimo. Durante o Passo 3 você vai usar o
-// Agent Mode do GitHub Copilot para construir os componentes:
-//   - components/UploadComponent
-//   - components/DocumentList
-//   - components/DownloadButton
-// e o serviço services/ que consome a API do backend via fetch.
+import { useState } from 'react';
+import UploadComponent from './components/UploadComponent.jsx';
+import DocumentList from './components/DocumentList.jsx';
+import './App.css';
+
+function DocumentWorkspace({ owner }) {
+  const [refreshKey, setRefreshKey] = useState(0);
+  return (
+    <>
+      <p>Usuário atual: <strong>{owner}</strong></p>
+      <UploadComponent owner={owner} onUploaded={() => setRefreshKey((value) => value + 1)} />
+      <DocumentList owner={owner} refreshKey={refreshKey} />
+    </>
+  );
+}
 
 export default function App() {
+  const [userInput, setUserInput] = useState('');
+  const [owner, setOwner] = useState('');
+  const [error, setError] = useState('');
+
+  function handleUserSubmit(event) {
+    event.preventDefault();
+    const userId = userInput.trim();
+    if (!userId) {
+      setError('Informe o identificador do usuário.');
+      return;
+    }
+    setError('');
+    setOwner(userId);
+  }
+
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
+    <main>
       <h1>Document Management System</h1>
-      <p>
-        Seed do frontend. Construa a interface durante o Passo 3 usando o Agent
-        Mode do GitHub Copilot.
+      <p>Envie, consulte e baixe seus documentos.</p>
+      <form onSubmit={handleUserSubmit}>
+        <label htmlFor="user-id">Identificador do usuário</label>
+        <input
+          id="user-id"
+          value={userInput}
+          onChange={(event) => setUserInput(event.target.value)}
+          required
+          aria-describedby="user-notice"
+        />
+        <button type="submit">Usar identificador</button>
+      </form>
+      <p id="user-notice">
+        Este MVP não possui autenticação. O identificador informado não comprova sua identidade.
       </p>
+      {error && <p role="alert">{error}</p>}
+      {owner
+        ? <DocumentWorkspace key={owner} owner={owner} />
+        : <p>Informe seu identificador para acessar os documentos.</p>}
     </main>
   );
 }
